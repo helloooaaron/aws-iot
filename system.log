@@ -1,0 +1,22 @@
+04-18 16:12:15.826     0   144 I Vold    : Vold 2.1 (the revenge) firing up
+04-18 16:12:15.830     0   144 D Vold    : Volume sdcard0 state changing -1 (Initializing) -> 0 (No-Media)
+04-18 16:12:15.830     0   144 D Vold    : Volume sdcard1 state changing -1 (Initializing) -> 0 (No-Media)
+04-18 16:12:15.830     0   144 D Vold    : Volume usbotg state changing -1 (Initializing) -> 0 (No-Media)
+04-18 16:12:15.831     0   144 I Cryptfs : Check if PFE is activated on Boot
+04-18 16:12:15.832     0   144 E Cryptfs : Bad magic for real block device /dev/block/platform/mtk-msdc.0/by-name/userdata
+04-18 16:12:15.832     0   144 E Cryptfs : Error getting crypt footer and key
+04-18 16:12:15.912   144   188 W DirectVolume: Deprecated implied prefix pattern detected, please use '/devices/platform/mtk-msdc.0/mmc_host*' instead
+04-18 16:12:15.912   144   188 D Vold    : Volume sdcard0 state changing 0 (No-Media) -> 1 (Idle-Unmounted)
+04-18 16:12:15.912   144   188 W Vold    : Duplicate state (1)
+04-18 16:12:15.913   144   188 W Vold    : Duplicate state (1)
+04-18 16:12:15.913   144   188 D Vold    : Volume sdcard0 state changing 1 (Idle-Unmounted) -> 2 (Pending)
+04-18 16:12:15.914   144   188 D Vold    : Volume sdcard0 state changing 2 (Pending) -> 1 (Idle-Unmounted)
+04-18 16:12:15.914   144   188 W Vold    : Duplicate state (1)
+04-18 16:12:15.914   144   188 W Vold    : Duplicate state (1)
+04-18 16:12:15.914   144   188 W Vold    : Duplicate state (1)
+04-18 16:12:15.914   144   188 W Vold    : Duplicate state (1)
+04-18 16:12:15.914   144   188 W Vold    : Duplicate state (1)
+04-18 16:12:15.914   144   188 W Vold    : Duplicate state (1)
+04-18 16:12:17.789   185   185 I InstallerConnection: connecting...
+04-18 16:12:17.795   185   185 I InstallerConnection: disconnecting...
+04-18 16:12:17.795   185   185 E InstallerConnection: connection failed

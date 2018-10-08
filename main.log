@@ -1,0 +1,22 @@
+04-18 16:12:15.905   145   145 I SurfaceFlinger: SurfaceFlinger is starting
+04-18 16:12:15.905   145   145 I SurfaceFlinger: SurfaceFlinger's main thread ready to run. Initializing graphics H/W...
+04-18 16:12:15.912   163   163 D DEVICETYPE: Set ro.product.config.type: A2M4YX06LWP8WI
+04-18 16:12:15.914   159   159 I installd: installd firing up
+04-18 16:12:15.926   157   157 E Netd    : Failed to open /proc/sys/net/ipv6/conf/default/use_optimistic: No such file or directory
+04-18 16:12:15.926   157   157 E Netd    : Failed to open /proc/sys/net/ipv6/conf/ifb0/use_optimistic: No such file or directory
+04-18 16:12:15.926   157   157 E Netd    : Failed to open /proc/sys/net/ipv6/conf/ifb1/use_optimistic: No such file or directory
+04-18 16:12:15.927   157   157 E Netd    : Failed to open /proc/sys/net/ipv6/conf/ip6tnl0/use_optimistic: No such file or directory
+04-18 16:12:15.927   157   157 E Netd    : Failed to open /proc/sys/net/ipv6/conf/lo/use_optimistic: No such file or directory
+04-18 16:12:15.927   157   157 E Netd    : Failed to open /proc/sys/net/ipv6/conf/sit0/use_optimistic: No such file or directory
+04-18 16:12:15.941   168   168 D NVRAM   : nvram_layout_callback will run!!!
+04-18 16:12:15.941   168   168 D NVRAM   : nvram_platform_log_block: 8
+04-18 16:12:15.941   168   168 D NVRAM   : nvram_platform_resv_block: 8
+04-18 16:12:15.941   168   168 D NVRAM   : nvram_platform_DM_block: 2
+04-18 16:12:15.941   168   168 D NVRAM   : g_i4CFG_File_Count: 26
+04-18 16:12:15.941   168   168 D NVRAM   : NVM_Init Max Lid: 45
+04-18 16:12:15.941   168   168 D NVRAM   : Total nvram Lid number is 45
+04-18 16:12:15.941   168   168 D NVRAM   : drvb s
+04-18 16:12:15.942   168   168 D NVRAM   : drvb e
+04-18 16:12:15.978   168   168 D NVRAM   : enter clean boot
+04-18 16:12:15.978   168   168 D NVRAM   : NVM_GetDeviceInfo : dumchar open fail!!!
+04-18 16:12:15.978   168   168 D NVRAM   : NVM_HistoryLog : get device info failed!!!

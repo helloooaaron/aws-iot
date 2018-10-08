@@ -1,0 +1,94 @@
+LOCAL_PATH := $(call my-dir)
+include $(CLEAR_VARS)
+
+src_files := \
+    aes.c        \
+    ccm.c        \
+    dhm.c        \
+    havege.c     \
+    nist_kw.c    \
+    pkwrite.c    \
+    ssl_cache.c  \
+    version_features.c \
+    aesni.c      \
+    certs.c      \
+    ecdh.c       \
+    hkdf.c       \
+    oid.c        \
+    platform.c   \
+    ssl_ciphersuites.c  \
+    x509.c arc4.c       \
+    chacha20.c          \
+    ecdsa.c      \
+    hmac_drbg.c  \
+    padlock.c    \
+    platform_util.c     \
+    ssl_cli.c    \
+    x509_create.c       \
+    aria.c       \
+    chachapoly.c        \
+    ecjpake.c    \
+    md2.c        \
+    pem.c        \
+    poly1305.c   \
+    ssl_cookie.c \
+    x509_crl.c   \
+    asn1parse.c  \
+    cipher.c     \
+    ecp.c        \
+    md4.c        \
+    pk.c         \
+    ripemd160.c  \
+    ssl_srv.c    \
+    x509_crt.c   \
+    asn1write.c  \
+    cipher_wrap.c     \
+    ecp_curves.c \
+    md5.c        \
+    pkcs11.c     \
+    rsa.c        \
+    ssl_ticket.c \
+    x509_csr.c   \
+    base64.c     \
+    cmac.c       \
+    entropy.c    \
+    md.c         \
+    pkcs12.c     \
+    rsa_internal.c     \
+    ssl_tls.c    \
+    x509write_crt.c    \
+    bignum.c     \
+    ctr_drbg.c   \
+    entropy_poll.c     \
+    md_wrap.c    \
+    pkcs5.c      \
+    sha1.c       \
+    threading.c  \
+    x509write_csr.c    \
+    blowfish.c   \
+    debug.c      \
+    error.c      \
+    memory_buffer_alloc.c      \
+    pkparse.c    \
+    sha256.c     \
+    timing.c     \
+    xtea.c camellia.c   \
+    des.c        \
+    gcm.c        \
+    net_sockets.c       \
+    pk_wrap.c    \
+    sha512.c     \
+    version.c
+
+
+LOCAL_MODULE := libmbedtls
+LOCAL_MODULE_TAGS := optional
+
+
+LOCAL_SRC_FILES := $(src_files)
+LOCAL_CXX_STL := none
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/../include/
+
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/../include/
+
+include $(BUILD_STATIC_LIBRARY)
