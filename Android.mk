@@ -75,6 +75,8 @@ LOCAL_SRC_FILES := samples/subscribe_publish_sample.c
 
 LOCAL_STATIC_LIBRARIES := libawsiot
 
+LOCAL_SHARED_LIBRARIES := libace_dropbox liblog
+
 LOCAL_CFLAGS := -std=gnu99
 
 include $(BUILD_EXECUTABLE)

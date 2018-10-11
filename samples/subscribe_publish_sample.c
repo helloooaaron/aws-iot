@@ -37,6 +37,21 @@
 #include "aws_iot_version.h"
 #include "aws_iot_mqtt_client_interface.h"
 
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <time.h>
+
+#include <android/log.h>
+#include <log/log.h>
+#include <log/log_read.h>
+#include <log/logprint.h>
+#include <log/logger.h>
+#include <log/logd.h>
+
+#include <ace/ace_dropbox.h>
+
 #define HOST_ADDRESS_SIZE 255
 /**
  * @brief Default cert location
@@ -58,39 +73,118 @@ uint32_t port = AWS_IOT_MQTT_PORT;
  */
 uint32_t publishCount = 0;
 
+bool Mode_Streaming = false;
+
+
 void iot_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNameLen,
 									IoT_Publish_Message_Params *params, void *pData) {
-	IOT_UNUSED(pData);
-    //	IOT_UNUSED(pClient);
+    IOT_UNUSED(pDATA)
 	printf("Subscribe callback\n");
 	printf("%.*s\t%.*s\n", topicNameLen, topicName, (int) params->payloadLen, (char *) params->payload);
 
-    char filename[24];
-    char cPayload[1024];
 	IoT_Publish_Message_Params paramsQOS0;
-    ssize_t read;
-    size_t len = 0;
-    char *line = NULL;
-    snprintf(filename, sizeof(filename), "%s.log", (char *) params->payload);
-    FILE *fp = fopen(filename, "r");
-    if (fp == NULL) {
+    size_t read;
+    char topic[64];
+    char buf[8196];
+    const char *log_tag = (char *) params->payload;
+
+    time_t now = time(NULL);
+    aceDropbox_entry_t *entry = aceDropbox_getNextEntry(log_tag, 0, 100);
+    if (!entry) {
+        printf("Error getting dropbox entry\n");
         return;
     }
-    while ((read = getline(&line, &len, fp)) != -1) {
 
-        snprintf(cPayload, sizeof(cPayload), "%s", line); 
+    snprintf(topic, sizeof(topic), "rpi3Demo/log/batch/%s_%ld", log_tag, now);
+    printf("topic: %s\n", topic);
+    while ((read = aceDropbox_readEntryData(buf, sizeof(buf), entry)) > 0) {
+        printf("%s\n", buf);
+
+        paramsQOS0.qos = QOS0;
+        paramsQOS0.payload = (void *) buf;
+        paramsQOS0.isRetained = 0;
+        paramsQOS0.payloadLen = read;
+
+        int ret = aws_iot_mqtt_publish(pClient, topic, strlen(topic), &paramsQOS0);
+        printf("published to mqtt (%d)\n", ret);
+    }
+
+    sleep(5);
+    // send done message
+    paramsQOS0.payload = "done";
+    paramsQOS0.payloadLen = 4;
+    snprintf(topic, sizeof(topic), "rpi3Demo/log/batch/%s_%ld/done", log_tag, now);
+    aws_iot_mqtt_publish(pClient, topic, strlen(topic), &paramsQOS0);
+
+    aceDropbox_releaseEntry(entry);
+}
+
+void *streamLogs(void *obj) {
+    const char *stream_topic = "rpi3Demo/log/stream/radio";
+    AWS_IoT_Client *pClient = (AWS_IoT_Client *) obj;
+    char defaultBuffer[512];
+    char cPayload[1024];
+    struct log_msg log_msg;
+    AndroidLogEntry entry;
+    AndroidLogFormat * g_logformat = android_log_format_new();
+    IoT_Publish_Message_Params paramsQOS0;
+    struct logger_list *logger_list = android_logger_list_open(LOG_ID_RADIO, O_RDONLY, 0, 0);
+    if (!logger_list) {
+        printf("Error allocating logger_list!\n");
+        return NULL;
+    }
+
+    while(true) {
+        int ret = aws_iot_mqtt_yield(pClient, 100);
+        if (NETWORK_ATTEMPTING_RECONNECT == ret) {
+            continue;
+        }
+
+        memset(&log_msg, 0, sizeof(struct log_msg));
+        ret = android_logger_list_read(logger_list, &log_msg);
+        if (ret <= 0) {
+            if (ret == EAGAIN) {
+                sleep(1);
+                continue;
+            } else {
+                printf("Error reading logs\n");
+                return NULL;
+            }
+        }
+
+        ret = android_log_processLogBuffer(&log_msg.entry_v1, &entry);
+        if (ret < 0) {
+            printf("error processing log");
+            return NULL;
+        }
+
+        char *outBuffer = NULL;
+        size_t totalLen;
+        outBuffer = android_log_formatLogLine(g_logformat, defaultBuffer,
+                                              sizeof(defaultBuffer), &entry, &totalLen);
+        if (!outBuffer) {
+            continue;
+        }
+        char *new_line = strchr(outBuffer, '\n');
+        if (new_line) {
+            *new_line = '\0';
+        }
+
+        snprintf(cPayload, sizeof(cPayload), "{\"msg\":\"%s\"}", outBuffer);
+
         paramsQOS0.qos = QOS0;
         paramsQOS0.payload = (void *) cPayload;
+        paramsQOS0.payloadLen = strlen(cPayload);
         paramsQOS0.isRetained = 0;
-		paramsQOS0.payloadLen = strlen(cPayload);
+        ret = aws_iot_mqtt_publish(pClient, stream_topic, strlen(stream_topic), &paramsQOS0);
 
-		aws_iot_mqtt_publish(pClient, "sdkTest/log", 11, &paramsQOS0);
-
-        sleep(1);
+        printf("%s (%d)\n", outBuffer, ret);
     }
-    fclose(fp);
-    if (line) free(line);
+
+    android_logger_list_free(logger_list);
+    return NULL;
 }
+
 
 void disconnectCallbackHandler(AWS_IoT_Client *pClient, void *data) {
 	printf("MQTT Disconnect\n");
@@ -118,8 +212,12 @@ void disconnectCallbackHandler(AWS_IoT_Client *pClient, void *data) {
 void parseInputArgsForConnectParams(int argc, char **argv) {
 	int opt;
 
-	while(-1 != (opt = getopt(argc, argv, "h:p:c:x:"))) {
+	while(-1 != (opt = getopt(argc, argv, "h:p:c:x:s"))) {
 		switch(opt) {
+            case 's':
+                Mode_Streaming = true;
+                printf("streaming mode\n");
+                break;
 			case 'h':
 				strncpy(HostAddress, optarg, HOST_ADDRESS_SIZE);
 				printf("Host %s\n", optarg);
@@ -173,16 +271,14 @@ int main(int argc, char **argv) {
 	IoT_Publish_Message_Params paramsQOS0;
 	IoT_Publish_Message_Params paramsQOS1;
 
-    printf("Hello World!!!!!\n");
-
 	parseInputArgsForConnectParams(argc, argv);
 
 	printf("\nAWS IoT SDK Version %d.%d.%d-%s\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, VERSION_TAG);
 
 	getcwd(CurrentWD, sizeof(CurrentWD));
-	snprintf(rootCA, PATH_MAX + 1, "%s/%s/%s", CurrentWD, certDirectory, AWS_IOT_ROOT_CA_FILENAME);
-	snprintf(clientCRT, PATH_MAX + 1, "%s/%s/%s", CurrentWD, certDirectory, AWS_IOT_CERTIFICATE_FILENAME);
-	snprintf(clientKey, PATH_MAX + 1, "%s/%s/%s", CurrentWD, certDirectory, AWS_IOT_PRIVATE_KEY_FILENAME);
+	snprintf(rootCA, PATH_MAX + 1, "%s/%s", certDirectory, AWS_IOT_ROOT_CA_FILENAME);
+	snprintf(clientCRT, PATH_MAX + 1, "%s/%s", certDirectory, AWS_IOT_CERTIFICATE_FILENAME);
+	snprintf(clientKey, PATH_MAX + 1, "%s/%s", certDirectory, AWS_IOT_PRIVATE_KEY_FILENAME);
 
 	printf("rootCA %s\n", rootCA);
 	printf("clientCRT %s\n", clientCRT);
@@ -205,7 +301,7 @@ int main(int argc, char **argv) {
 		return rc;
 	}
 
-	connectParams.keepAliveIntervalInSec = 600;
+	connectParams.keepAliveIntervalInSec = 6000;
 	connectParams.isCleanSession = true;
 	connectParams.MQTTVersion = MQTT_3_1_1;
 	connectParams.pClientID = AWS_IOT_MQTT_CLIENT_ID;
@@ -228,24 +324,34 @@ int main(int argc, char **argv) {
 		printf("Unable to set Auto Reconnect to true - %d\n", rc);
 		return rc;
 	}
+    printf("MQTT connection is ready\n");
 
-	printf("Subscribing...\n");
-	rc = aws_iot_mqtt_subscribe(&client, "sdkTest/upload", 14, QOS0, iot_subscribe_callback_handler, NULL);
-	if(SUCCESS != rc) {
-		printf("Error subscribing : %d \n", rc);
-		return rc;
-	}
+    if (Mode_Streaming) {
+        pthread_attr_t attr;
+        pthread_t thread;
+        pthread_attr_init(&attr);
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+        pthread_create(&thread, &attr, streamLogs, (void *)&client);
+        pthread_attr_destroy(&attr);
+    } else {
 
-    while (true) {
-		//Max time the yield function will wait for read messages
-		rc = aws_iot_mqtt_yield(&client, 100);
-		if(NETWORK_ATTEMPTING_RECONNECT == rc) {
-			// If the client is attempting to reconnect we will skip the rest of the loop.
-			continue;
-		}
+        printf("Subscribing...\n");
+        rc = aws_iot_mqtt_subscribe(&client, "rpi3Demo/upload", 15, QOS0, iot_subscribe_callback_handler, NULL);
+        if(SUCCESS != rc) {
+            printf("Error subscribing : %d \n", rc);
+            return rc;
+        }
 
-        //		printf("-->sleep");
-		sleep(1);        
+        while (true) {
+            //Max time the yield function will wait for read messages
+            rc = aws_iot_mqtt_yield(&client, 100);
+            if(NETWORK_ATTEMPTING_RECONNECT == rc) {
+                // If the client is attempting to reconnect we will skip the rest of the loop.
+                continue;
+            }
+
+            sleep(1);
+        }
     }
 
     /*
@@ -277,7 +383,7 @@ int main(int argc, char **argv) {
 		sleep(1);
 		sprintf(cPayload, "%s : %d ", "hello from SDK QOS0", i++);
 		paramsQOS0.payloadLen = strlen(cPayload);
-		rc = aws_iot_mqtt_publish(&client, "sdkTest/sub", 11, &paramsQOS0);
+		rc = aws_iot_mqtt_publish(&client, "rpi3Demo/sub", 11, &paramsQOS0);
 		if(publishCount > 0) {
 			publishCount--;
 		}
@@ -288,7 +394,7 @@ int main(int argc, char **argv) {
 
 		sprintf(cPayload, "%s : %d ", "hello from SDK QOS1", i++);
 		paramsQOS1.payloadLen = strlen(cPayload);
-		rc = aws_iot_mqtt_publish(&client, "sdkTest/sub", 11, &paramsQOS1);
+		rc = aws_iot_mqtt_publish(&client, "rpi3Demo/sub", 11, &paramsQOS1);
 		if (rc == MQTT_REQUEST_TIMEOUT_ERROR) {
 			IOT_WARN("QOS1 publish ack not received.\n");
 			rc = SUCCESS;
@@ -299,6 +405,8 @@ int main(int argc, char **argv) {
 	}
     */
 
+    TEMP_FAILURE_RETRY(pause());
+
 	// Wait for all the messages to be received
 	aws_iot_mqtt_yield(&client, 100);
 
@@ -308,5 +416,5 @@ int main(int argc, char **argv) {
 		printf("Publish done\n");
 	}
 
-	return rc;
+    exit(0);
 }
