@@ -73,12 +73,10 @@ uint32_t port = AWS_IOT_MQTT_PORT;
  */
 uint32_t publishCount = 0;
 
-bool Mode_Streaming = false;
-
 
 void iot_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNameLen,
 									IoT_Publish_Message_Params *params, void *pData) {
-    IOT_UNUSED(pDATA)
+    IOT_UNUSED(pData);
 	printf("Subscribe callback\n");
 	printf("%.*s\t%.*s\n", topicNameLen, topicName, (int) params->payloadLen, (char *) params->payload);
 
@@ -98,7 +96,7 @@ void iot_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, ui
     snprintf(topic, sizeof(topic), "rpi3Demo/log/batch/%s_%ld", log_tag, now);
     printf("topic: %s\n", topic);
     while ((read = aceDropbox_readEntryData(buf, sizeof(buf), entry)) > 0) {
-        printf("%s\n", buf);
+        //        printf("%s\n", buf);
 
         paramsQOS0.qos = QOS0;
         paramsQOS0.payload = (void *) buf;
@@ -107,9 +105,10 @@ void iot_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, ui
 
         int ret = aws_iot_mqtt_publish(pClient, topic, strlen(topic), &paramsQOS0);
         printf("published to mqtt (%d)\n", ret);
+        sleep(3);
     }
 
-    sleep(5);
+    sleep(15);
     // send done message
     paramsQOS0.payload = "done";
     paramsQOS0.payloadLen = 4;
@@ -214,10 +213,6 @@ void parseInputArgsForConnectParams(int argc, char **argv) {
 
 	while(-1 != (opt = getopt(argc, argv, "h:p:c:x:s"))) {
 		switch(opt) {
-            case 's':
-                Mode_Streaming = true;
-                printf("streaming mode\n");
-                break;
 			case 'h':
 				strncpy(HostAddress, optarg, HOST_ADDRESS_SIZE);
 				printf("Host %s\n", optarg);
@@ -326,33 +321,32 @@ int main(int argc, char **argv) {
 	}
     printf("MQTT connection is ready\n");
 
-    if (Mode_Streaming) {
-        pthread_attr_t attr;
-        pthread_t thread;
-        pthread_attr_init(&attr);
-        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-        pthread_create(&thread, &attr, streamLogs, (void *)&client);
-        pthread_attr_destroy(&attr);
-    } else {
+    printf("Starting streaming thread...\n");
+    pthread_attr_t attr;
+    pthread_t thread;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    pthread_create(&thread, &attr, streamLogs, (void *)&client);
+    pthread_attr_destroy(&attr);
 
-        printf("Subscribing...\n");
-        rc = aws_iot_mqtt_subscribe(&client, "rpi3Demo/upload", 15, QOS0, iot_subscribe_callback_handler, NULL);
-        if(SUCCESS != rc) {
-            printf("Error subscribing : %d \n", rc);
+    printf("Subscribing...\n");
+    rc = aws_iot_mqtt_subscribe(&client, "rpi3Demo/upload", 15, QOS0, iot_subscribe_callback_handler, NULL);
+    if(SUCCESS != rc) {
+        printf("Error subscribing : %d \n", rc);
             return rc;
-        }
-
-        while (true) {
-            //Max time the yield function will wait for read messages
-            rc = aws_iot_mqtt_yield(&client, 100);
-            if(NETWORK_ATTEMPTING_RECONNECT == rc) {
-                // If the client is attempting to reconnect we will skip the rest of the loop.
-                continue;
-            }
-
-            sleep(1);
-        }
     }
+
+    while (true) {
+        //Max time the yield function will wait for read messages
+        rc = aws_iot_mqtt_yield(&client, 100);
+        if(NETWORK_ATTEMPTING_RECONNECT == rc) {
+            // If the client is attempting to reconnect we will skip the rest of the loop.
+            continue;
+        }
+
+        sleep(1);
+    }
+
 
     /*
 	sprintf(cPayload, "%s : %d ", "hello from SDK", i);
